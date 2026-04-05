@@ -1,0 +1,64 @@
+apiVersion: ray.io/v1
+kind: RayCluster
+metadata:
+  name: local-ray
+  namespace: ray
+  labels:
+    app.kubernetes.io/managed-by: localk8s-bootstrap
+    app.kubernetes.io/part-of: localk8s
+spec:
+  rayVersion: "2.47.1"
+  headGroupSpec:
+    serviceType: ClusterIP
+    rayStartParams:
+      dashboard-host: "0.0.0.0"
+    template:
+      metadata:
+        labels:
+          app.kubernetes.io/name: local-ray-head
+          app.kubernetes.io/managed-by: localk8s-bootstrap
+      spec:
+        containers:
+          - name: ray-head
+            image: rayproject/ray:2.47.1
+            imagePullPolicy: IfNotPresent
+            resources:
+              limits:
+                cpu: "2"
+                memory: 4Gi
+              requests:
+                cpu: "1"
+                memory: 2Gi
+            ports:
+              - containerPort: 6379
+                name: gcs
+              - containerPort: 8265
+                name: dashboard
+              - containerPort: 10001
+                name: client
+  workerGroupSpecs:
+    - groupName: gpu-workers
+      replicas: 1
+      minReplicas: 1
+      maxReplicas: 2
+      rayStartParams: {}
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: local-ray-worker
+            app.kubernetes.io/managed-by: localk8s-bootstrap
+        spec:
+          runtimeClassName: nvidia
+          containers:
+            - name: ray-worker
+              image: rayproject/ray:2.47.1
+              imagePullPolicy: IfNotPresent
+              resources:
+                limits:
+                  cpu: "4"
+                  memory: 16Gi
+                  nvidia.com/gpu: "1"
+                requests:
+                  cpu: "2"
+                  memory: 8Gi
+                  nvidia.com/gpu: "1"

@@ -1,0 +1,12 @@
+# Local temporary artifacts
+.tmp-idempotency/
+
+# Editor/OS
+.DS_Store
+.idea/
+.vscode/
+
+# Logs and transient output
+*.log
+*.tmp
+*.bak

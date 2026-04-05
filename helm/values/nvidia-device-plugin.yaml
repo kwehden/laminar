@@ -1,0 +1,28 @@
+# NVIDIA device plugin chart values.
+# Time-slicing is configured via config.map.<name> payload.
+
+gfd:
+  enabled: false
+
+# Single-node baseline: do not require NFD/GFD node labels for scheduling.
+affinity: null
+runtimeClassName: nvidia
+
+config:
+  default: config
+  map:
+    config: |
+      version: v1
+      flags:
+        migStrategy: "none"
+        failOnInitError: true
+        nvidiaDriverRoot: "/"
+        plugin:
+          passDeviceSpecs: false
+          deviceListStrategy: envvar
+          deviceIDStrategy: uuid
+      sharing:
+        timeSlicing:
+          resources:
+            - name: nvidia.com/gpu
+              replicas: 2

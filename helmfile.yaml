@@ -1,0 +1,42 @@
+helmDefaults:
+  wait: true
+  timeout: 600
+  atomic: true
+
+repositories:
+  - name: nvdp
+    url: https://nvidia.github.io/k8s-device-plugin
+  - name: kuberay
+    url: https://ray-project.github.io/kuberay-helm/
+  - name: headlamp
+    url: https://kubernetes-sigs.github.io/headlamp/
+
+releases:
+  - name: nvidia-device-plugin
+    namespace: kube-system
+    chart: nvdp/nvidia-device-plugin
+    version: {{ requiredEnv "NVIDIA_DEVICE_PLUGIN_CHART_VERSION" | quote }}
+    labels:
+      component: nvidia
+    values:
+      - helm/values/nvidia-device-plugin.yaml
+
+  - name: kuberay-operator
+    namespace: kuberay-system
+    chart: kuberay/kuberay-operator
+    version: {{ requiredEnv "KUBERAY_HELM_CHART_VERSION" | quote }}
+    labels:
+      component: kuberay
+    createNamespace: true
+    values:
+      - helm/values/kuberay-operator.yaml
+
+  - name: headlamp
+    namespace: k3s-dashboard
+    chart: headlamp/headlamp
+    version: {{ requiredEnv "HEADLAMP_HELM_CHART_VERSION" | quote }}
+    labels:
+      component: dashboard
+    createNamespace: true
+    values:
+      - helm/values/headlamp.yaml

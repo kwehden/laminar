@@ -1,0 +1,19 @@
+---
+- name: Configure local host for localk8s
+  hosts: localhost
+  become: true
+  gather_facts: true
+  vars:
+    k3s_version: "{{ lookup('env', 'K3S_VERSION') | default('', true) }}"
+    k3s_default_runtime: "{{ lookup('env', 'K3S_DEFAULT_RUNTIME') | default('', true) }}"
+    managed_host_paths_raw: "{{ lookup('env', 'MANAGED_HOST_PATHS') | default('', true) }}"
+    managed_host_paths: "{{ managed_host_paths_raw.split() | list }}"
+  roles:
+    - role: prereqs
+      tags: ["prereqs"]
+    - role: host_paths
+      tags: ["host_paths"]
+    - role: k3s
+      tags: ["k3s"]
+    - role: nvidia_runtime
+      tags: ["nvidia_runtime"]

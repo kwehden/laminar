@@ -1,0 +1,11 @@
+# One Ollama model tag per line.
+# Lines beginning with '#' are ignored.
+
+gpt-oss:latest
+llama3.1:latest
+glm-4.7-flash:latest
+llama3.1:8B
+lfm2.5-thinking:latest
+glm-4.7-flash:q4_K_M
+gpt-oss:20B
+qwen3.5:latest

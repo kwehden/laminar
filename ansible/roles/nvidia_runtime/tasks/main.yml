@@ -1,0 +1,102 @@
+---
+- name: Check NVIDIA GPU visibility on host
+  ansible.builtin.command: nvidia-smi -L
+  register: nvidia_smi_result
+  changed_when: false
+  failed_when: false
+
+- name: Fail if nvidia-smi is unavailable
+  ansible.builtin.fail:
+    msg: "nvidia-smi is not available. Install NVIDIA driver before bootstrap."
+  when: nvidia_smi_result.rc != 0
+
+- name: Check nvidia container runtime availability
+  ansible.builtin.command: nvidia-container-runtime --version
+  register: nvidia_runtime_check
+  changed_when: false
+  failed_when: false
+
+- name: Install NVIDIA container toolkit/runtime when missing
+  when: nvidia_runtime_check.rc != 0
+  block:
+    - name: Download NVIDIA container toolkit GPG key
+      ansible.builtin.get_url:
+        url: https://nvidia.github.io/libnvidia-container/gpgkey
+        dest: /tmp/nvidia-container-toolkit.gpg
+        mode: "0644"
+
+    - name: Create keyring directory
+      ansible.builtin.file:
+        path: /usr/share/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Install NVIDIA container toolkit keyring
+      ansible.builtin.command:
+        cmd: gpg --dearmor --yes --output /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg /tmp/nvidia-container-toolkit.gpg
+      args:
+        creates: /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+
+    - name: Configure NVIDIA container toolkit apt source list
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/nvidia-container-toolkit.list
+        content: |
+          deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://nvidia.github.io/libnvidia-container/stable/deb/$(ARCH) /
+          #deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://nvidia.github.io/libnvidia-container/experimental/deb/$(ARCH) /
+        mode: "0644"
+
+    - name: Install nvidia-container-toolkit package
+      ansible.builtin.apt:
+        name: nvidia-container-toolkit
+        state: present
+        update_cache: true
+
+    - name: Attempt to install nvidia-container-runtime package (optional)
+      ansible.builtin.apt:
+        name: nvidia-container-runtime
+        state: present
+        update_cache: false
+      register: nvidia_runtime_pkg_install
+      failed_when: false
+
+    - name: Note when nvidia-container-runtime package is unavailable
+      ansible.builtin.debug:
+        msg: >-
+          nvidia-container-runtime package was not installed from apt;
+          continuing with nvidia-container-toolkit-provided runtime tooling.
+      when:
+        - nvidia_runtime_pkg_install is defined
+        - nvidia_runtime_pkg_install.failed | default(false)
+  rescue:
+    - name: Fail with installation guidance
+      ansible.builtin.fail:
+        msg: >-
+          Unable to install NVIDIA container toolkit/runtime.
+          Validate NVIDIA libnvidia-container repository access, then re-run bootstrap.
+
+- name: Re-check NVIDIA container tooling availability
+  ansible.builtin.shell: command -v nvidia-container-runtime || command -v nvidia-ctk
+  args:
+    executable: /bin/bash
+  register: nvidia_runtime_tool_check
+  changed_when: false
+  failed_when: nvidia_runtime_tool_check.rc != 0
+
+- name: Restart k3s after runtime install
+  ansible.builtin.systemd:
+    name: k3s
+    state: restarted
+  when: nvidia_runtime_check.rc != 0
+
+- name: Verify k3s detects nvidia runtime
+  ansible.builtin.command: grep -E 'nvidia|nvidia-cdi' /var/lib/rancher/k3s/agent/etc/containerd/config.toml
+  register: k3s_runtime_detect
+  changed_when: false
+  failed_when: false
+
+- name: Fail if nvidia runtime is not detected by k3s
+  ansible.builtin.fail:
+    msg: >-
+      k3s containerd config does not list an nvidia runtime.
+      Ensure nvidia-container-runtime is installed and restart k3s.
+  when: k3s_runtime_detect.rc != 0

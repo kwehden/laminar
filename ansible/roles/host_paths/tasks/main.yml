@@ -1,0 +1,8 @@
+---
+- name: Ensure managed host paths exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ managed_host_paths }}"
+  when: managed_host_paths | length > 0

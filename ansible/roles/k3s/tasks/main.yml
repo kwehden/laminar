@@ -1,0 +1,43 @@
+---
+- name: Validate k3s version input
+  ansible.builtin.assert:
+    that:
+      - k3s_version | length > 0
+    fail_msg: "K3S_VERSION must be set in the environment."
+
+- name: Download k3s install script
+  ansible.builtin.get_url:
+    url: https://get.k3s.io
+    dest: /tmp/get-k3s.sh
+    mode: "0755"
+
+- name: Build k3s install args
+  ansible.builtin.set_fact:
+    k3s_install_exec: >-
+      server --write-kubeconfig-mode 644{% if k3s_default_runtime | length > 0 %} --default-runtime {{ k3s_default_runtime }}{% endif %}
+
+- name: Install k3s server when missing
+  ansible.builtin.shell:
+    cmd: |
+      INSTALL_K3S_VERSION='{{ k3s_version }}' \
+      INSTALL_K3S_EXEC='{{ k3s_install_exec }}' \
+      sh /tmp/get-k3s.sh
+    executable: /bin/bash
+    creates: /etc/systemd/system/k3s.service
+
+- name: Ensure k3s service is enabled and running
+  ansible.builtin.systemd:
+    name: k3s
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Wait for k3s kubeconfig
+  ansible.builtin.wait_for:
+    path: /etc/rancher/k3s/k3s.yaml
+    timeout: 120
+
+- name: Ensure kubeconfig is readable for local automation
+  ansible.builtin.file:
+    path: /etc/rancher/k3s/k3s.yaml
+    mode: "0644"

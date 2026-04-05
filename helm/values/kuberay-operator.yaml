@@ -1,0 +1,5 @@
+replicas: 1
+
+labels:
+  app.kubernetes.io/managed-by: localk8s-bootstrap
+  app.kubernetes.io/part-of: localk8s

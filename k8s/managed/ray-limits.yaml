@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: ray-default-limits
+  namespace: ray
+  labels:
+    app.kubernetes.io/managed-by: localk8s-bootstrap
+    app.kubernetes.io/part-of: localk8s
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: "2"
+        memory: 4Gi
+      defaultRequest:
+        cpu: "500m"
+        memory: 1Gi
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: ray-quota
+  namespace: ray
+  labels:
+    app.kubernetes.io/managed-by: localk8s-bootstrap
+    app.kubernetes.io/part-of: localk8s
+spec:
+  hard:
+    limits.cpu: "12"
+    limits.memory: 48Gi
+    requests.cpu: "6"
+    requests.memory: 24Gi
+    requests.nvidia.com/gpu: "2"

@@ -1,0 +1,16 @@
+# Headlamp chart values for local cluster dashboard access via /k3s.
+
+config:
+  inCluster: true
+  inClusterContextName: main
+  baseURL: /k3s
+
+service:
+  type: ClusterIP
+
+clusterRoleBinding:
+  create: true
+  clusterRoleName: cluster-admin
+
+ingress:
+  enabled: false
