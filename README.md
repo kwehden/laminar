@@ -139,6 +139,7 @@ helm/values/     Helm values for operators and plugins
 k8s/managed/     Managed Kubernetes manifests (pruned by label)
 scripts/         Setup/bootstrap/health/ops helper scripts
 spec/            Context/requirements/design/tasks chain
+spec/runbook.md  Operational execution log and validation evidence
 ```
 
 ## Operations
