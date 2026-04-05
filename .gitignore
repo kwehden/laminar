@@ -13,3 +13,4 @@
 
 # Host-local overrides
 config/local.env
+AGENTS.md

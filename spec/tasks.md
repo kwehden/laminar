@@ -92,7 +92,7 @@ Execution order is mostly linear due to platform dependencies: establish host/ru
 
 ### TASK-007
 - Goal: Implement validation assets for CUDA and end-to-end checks.
-- Files/areas expected to change: `k8s/validation/cuda-test-pod.yaml`, `scripts/healthcheck.sh`, `spec/runbook.md`.
+- Files/areas expected to change: `k8s/validation/cuda-test-pod.yaml`, `scripts/healthcheck.sh`, `docs/runbook.md`.
 - Dependencies: TASK-003, TASK-005.
 - Recommended Mode: test-engineer.
 - Steps:
@@ -106,7 +106,7 @@ Execution order is mostly linear due to platform dependencies: establish host/ru
 
 ### TASK-008
 - Goal: Build healthcheck automation and final operator checklist.
-- Files/areas expected to change: `scripts/healthcheck.sh`, `README.md`, `spec/runbook.md`.
+- Files/areas expected to change: `scripts/healthcheck.sh`, `README.md`, `docs/runbook.md`.
 - Dependencies: TASK-003, TASK-004, TASK-005, TASK-007.
 - Recommended Mode: test-engineer.
 - Steps:
@@ -120,7 +120,7 @@ Execution order is mostly linear due to platform dependencies: establish host/ru
 
 ### TASK-009
 - Goal: Implement convergence verification and stale-config cleanup checks for rerun safety.
-- Files/areas expected to change: `scripts/bootstrap.sh`, `scripts/idempotency-check.sh`, `spec/runbook.md`.
+- Files/areas expected to change: `scripts/bootstrap.sh`, `scripts/idempotency-check.sh`, `docs/runbook.md`.
 - Dependencies: TASK-002, TASK-004, TASK-005, TASK-008.
 - Recommended Mode: test-engineer.
 - Steps:
@@ -144,7 +144,7 @@ Execution order is mostly linear due to platform dependencies: establish host/ru
 ## Execution Notes (tooling, environment, checkpoints)
 - Start every execution cycle by confirming host GPU inventory (`nvidia-smi`) and disk headroom.
 - Prefer incremental stage execution to localize failures quickly.
-- Record validation command outputs after each stage in `spec/runbook.md`.
+- Record validation command outputs after each stage in `docs/runbook.md`.
 - Keep defaults local-only; avoid exposing dashboards beyond localhost in phase 1.
 
 ## Traceability (REQ IDs -> TASK IDs)
