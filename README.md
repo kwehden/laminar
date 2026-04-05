@@ -6,7 +6,7 @@
 [![LLM Runtime](https://img.shields.io/badge/ollama-in--cluster-black)](https://ollama.com/)
 
 LocalK8s is a single-host GPU Kubernetes baseline for local AI systems work.  
-It provisions k3s, NVIDIA runtime/device plugin, KubeRay, in-cluster Ollama, dashboard ingress routes, and day-0 convergence scripts.
+It provisions k3s, NVIDIA runtime/device plugin, KubeRay, in-cluster Ollama, dashboard ingress routes, and day-0 convergence (idempotent install) scripts.
 
 ## Table of Contents
 
