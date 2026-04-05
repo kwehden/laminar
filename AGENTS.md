@@ -23,7 +23,7 @@ Canonical planning artifacts live in `spec/`:
 - `spec/design.md`
 - `spec/tasks.md`
 - `spec/security.md` (when relevant)
- - `spec/runbook.md` (operational notes/validation logs when used)
+- `spec/runbook.md` (operational notes/validation logs when used)
 
 `spec/` is the single source of truth for planning and gate artifacts in this repository.
 
