@@ -19,7 +19,7 @@
       tags: ["nvidia_runtime"]
 
 - name: Configure remote node join/uninstall workflows
-  hosts: all
+  hosts: node_join_targets
   become: true
   gather_facts: true
   vars:
