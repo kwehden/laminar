@@ -1,0 +1,38 @@
+---
+- name: Configure k3s agent mode facts
+  ansible.builtin.set_fact:
+    k3s_agent_join_mode: "{{ k3s_agent_join_mode | default('join', true) }}"
+
+- name: Validate k3s agent mode
+  ansible.builtin.assert:
+    that:
+      - k3s_agent_join_mode in ['join', 'uninstall']
+    fail_msg: "k3s_agent_join_mode must be one of: join, uninstall"
+
+- name: Assert node join target is provided
+  ansible.builtin.assert:
+    that:
+      - (node_join_target | default('', true)) | length > 0
+    fail_msg: "node_join_target must be provided for k3s agent workflows."
+
+- name: Assert join-specific k3s server inputs are provided
+  ansible.builtin.assert:
+    that:
+      - (k3s_server_url | default('', true)) | length > 0
+      - (k3s_server_token | default('', true)) | length > 0
+    fail_msg: "k3s_server_url and k3s_server_token must be provided when k3s_agent_join_mode=join."
+  when: k3s_agent_join_mode == 'join'
+
+- name: Explain placeholder behavior for join mode
+  ansible.builtin.debug:
+    msg: >-
+      Placeholder role: would install/configure k3s agent on {{ node_join_target }}
+      against {{ k3s_server_url }} and apply labels/taints in later task iterations.
+  when: k3s_agent_join_mode == 'join'
+
+- name: Explain placeholder behavior for uninstall mode
+  ansible.builtin.debug:
+    msg: >-
+      Placeholder role: would uninstall k3s agent artifacts on {{ node_join_target }}
+      using ownership-scoped cleanup in later task iterations.
+  when: k3s_agent_join_mode == 'uninstall'

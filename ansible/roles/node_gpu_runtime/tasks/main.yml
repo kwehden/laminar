@@ -1,0 +1,22 @@
+---
+- name: Configure node GPU runtime mode facts
+  ansible.builtin.set_fact:
+    node_gpu_runtime_mode: "{{ node_gpu_runtime_mode | default('skip', true) }}"
+
+- name: Validate node GPU runtime mode
+  ansible.builtin.assert:
+    that:
+      - node_gpu_runtime_mode in ['enable', 'skip', 'uninstall']
+    fail_msg: "node_gpu_runtime_mode must be one of: enable, skip, uninstall"
+
+- name: Explain placeholder behavior for GPU runtime enable
+  ansible.builtin.debug:
+    msg: >-
+      Placeholder role: would install/verify NVIDIA runtime components on {{ node_join_target | default('target host') }}.
+  when: node_gpu_runtime_mode == 'enable'
+
+- name: Explain placeholder behavior for GPU runtime uninstall
+  ansible.builtin.debug:
+    msg: >-
+      Placeholder role: would remove node-scoped GPU runtime components listed in ownership registry.
+  when: node_gpu_runtime_mode == 'uninstall'

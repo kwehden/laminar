@@ -17,3 +17,18 @@
       tags: ["k3s"]
     - role: nvidia_runtime
       tags: ["nvidia_runtime"]
+
+- name: Configure remote node join/uninstall workflows
+  hosts: all
+  become: true
+  gather_facts: true
+  vars:
+    k3s_server_url: "{{ lookup('env', 'K3S_SERVER_URL') | default('', true) }}"
+    k3s_server_token: "{{ lookup('env', 'K3S_SERVER_TOKEN') | default('', true) }}"
+    node_join_target: "{{ lookup('env', 'NODE_JOIN_TARGET') | default('', true) }}"
+    node_gpu_runtime_mode: "{{ lookup('env', 'NODE_GPU_RUNTIME_MODE') | default('skip', true) }}"
+  roles:
+    - role: k3s_agent
+      tags: ["k3s_agent"]
+    - role: node_gpu_runtime
+      tags: ["node_gpu_runtime"]
