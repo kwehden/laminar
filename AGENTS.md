@@ -23,8 +23,9 @@ Canonical planning artifacts live in `spec/`:
 - `spec/design.md`
 - `spec/tasks.md`
 - `spec/security.md` (when relevant)
+ - `spec/runbook.md` (operational notes/validation logs when used)
 
-Current seed docs exist in `docs/` (`docs/requirements.md`, `docs/design.md`). Before implementation, copy or reconcile them into `spec/` so execution uses one source of truth.
+`spec/` is the single source of truth for planning and gate artifacts in this repository.
 
 ## Delegation Map (Preferred)
 1. `repo-governor` (repo survey/conventions)
@@ -35,7 +36,7 @@ Current seed docs exist in `docs/` (`docs/requirements.md`, `docs/design.md`). B
 6. `executor` (implementation)
 7. `test-engineer` (verification + test updates)
 8. `security-sentinel` (security review for auth/secrets/permissions/tooling)
-9. `docs-release` (docs/changelog updates)
+9. `docs-release` (`README.md`, `spec/`, changelog updates)
 10. `code-reviewer` (final review)
 
 ## Delegation Contract

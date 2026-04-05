@@ -1,7 +1,17 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+LOCAL_ENV_FILE="${PROJECT_ROOT}/config/local.env"
+
+if [[ -f "${LOCAL_ENV_FILE}" ]]; then
+  # shellcheck disable=SC1090
+  source "${LOCAL_ENV_FILE}"
+fi
+
 KUBECONFIG_PATH="${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}"
+GATEWAY_HOST="${LOCAL_HOSTNAME:-$(hostname -s)}"
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
@@ -15,8 +25,8 @@ require_cmd() {
 }
 
 check_gateway_routes() {
-  curl -sS --fail --header 'Host: laminarflow' http://127.0.0.1/ray >/dev/null
-  curl -sS --fail --header 'Host: laminarflow' http://127.0.0.1/k3s/ >/dev/null
+  curl -sS --fail "http://${GATEWAY_HOST}/ray" >/dev/null
+  curl -sS --fail "http://${GATEWAY_HOST}/k3s/" >/dev/null
 }
 
 check_node_ready() {

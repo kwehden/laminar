@@ -10,3 +10,6 @@
 *.log
 *.tmp
 *.bak
+
+# Host-local overrides
+config/local.env

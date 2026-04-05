@@ -13,6 +13,7 @@ It provisions k3s, NVIDIA runtime/device plugin, KubeRay, in-cluster Ollama, das
 - [What This Repo Does](#what-this-repo-does)
 - [Architecture](#architecture)
 - [Quick Start](#quick-start)
+- [Tested Environment](#tested-environment)
 - [Access Endpoints](#access-endpoints)
 - [Model Management](#model-management)
 - [Repository Layout](#repository-layout)
@@ -26,8 +27,8 @@ It provisions k3s, NVIDIA runtime/device plugin, KubeRay, in-cluster Ollama, das
 - Deploys **KubeRay** and a GPU-backed `RayCluster`.
 - Deploys **Ollama in-cluster** on GPU with persistent model storage.
 - Exposes gateway routes via Traefik:
-  - `http://laminarflow/ray/`
-  - `http://laminarflow/k3s/`
+  - `http://<your-local-hostname>/ray/`
+  - `http://<your-local-hostname>/k3s/`
 - Keeps managed resources idempotent and prune-safe via ownership labels.
 
 ## Architecture
@@ -57,6 +58,15 @@ Execution model:
 ./scripts/setup.sh
 ```
 
+`setup.sh` writes `config/local.env` with `LOCAL_HOSTNAME` for local route checks and examples.
+
+Optional shell persistence:
+
+```bash
+echo 'export LOCAL_HOSTNAME="<your-local-hostname>"' >> ~/.bashrc
+# or ~/.zshrc
+```
+
 ### 2) (Optional but recommended) Remove host Ollama
 
 ```bash
@@ -79,11 +89,27 @@ Default configured disk UUID:
 ./scripts/healthcheck.sh
 ```
 
+## Tested Environment
+
+Validated on:
+- Linux: Ubuntu 26.04 (Resolute Raccoon, Debian family)
+- Local tooling installed by `scripts/setup.sh`:
+  - `ansible-core` 2.20.1
+  - `helm` v3.17.3
+  - `helmfile` 0.169.1
+  - `ripgrep` 15.1.0
+- Platform pins from `config/versions.env`:
+  - `k3s` v1.33.1+k3s1
+  - `nvidia-device-plugin` chart 0.17.1
+  - `kuberay-operator` chart 1.3.0
+  - `ray` image tag 2.47.1
+  - `headlamp` chart 0.41.0
+
 ## Access Endpoints
 
-- Ray dashboard: `http://laminarflow/ray/`
-- Cluster dashboard (Headlamp): `http://laminarflow/k3s/`
-- Ollama API: `http://laminarflow:11434` (or `http://127.0.0.1:11434` from host)
+- Ray dashboard: `http://<your-local-hostname>/ray/`
+- Cluster dashboard (Headlamp): `http://<your-local-hostname>/k3s/`
+- Ollama API: `http://<your-local-hostname>:11434` (or `http://127.0.0.1:11434` from host)
 
 Headlamp token helper:
 
@@ -109,7 +135,6 @@ Model list source:
 ```text
 ansible/         Host and k3s configuration roles
 config/          Version pins, managed-scope config, model list
-docs/            System2 seed docs and gate artifacts
 helm/values/     Helm values for operators and plugins
 k8s/managed/     Managed Kubernetes manifests (pruned by label)
 scripts/         Setup/bootstrap/health/ops helper scripts

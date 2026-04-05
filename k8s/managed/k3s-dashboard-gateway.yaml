@@ -26,8 +26,7 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-    - host: laminarflow
-      http:
+    - http:
         paths:
           - path: /k3s
             pathType: Prefix
