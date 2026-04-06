@@ -11,6 +11,7 @@ TARGET_NODE=""
 TARGET_HOST=""
 INVENTORY_PATH="${PROJECT_ROOT}/packages/node-join/inventory.example.ini"
 ALLOW_CONTROL_PLANE_REMOVE="false"
+ALLOW_MISSING_REGISTRY="false"
 EXTRA_ANSIBLE_ARGS=()
 
 log() {
@@ -24,13 +25,14 @@ die() {
 
 usage() {
   cat <<USAGE
-Usage: ${SCRIPT_NAME} --node <k8s-node-name> --target <inventory-host> [--inventory <path>] [--allow-control-plane-remove] [-- <extra ansible args>]
+Usage: ${SCRIPT_NAME} --node <k8s-node-name> --target <inventory-host> [--inventory <path>] [--allow-control-plane-remove] [--force-without-registry] [-- <extra ansible args>]
 
 Options:
   --node <name>                   Kubernetes node name to remove (required)
   --target <host>                 Inventory host/group used for host-side uninstall (required)
   --inventory <path>              Ansible inventory path (default: packages/node-join/inventory.example.ini)
   --allow-control-plane-remove    Explicitly allow targeting control-plane node (dangerous)
+  --force-without-registry        Allow uninstall to proceed with conservative fallback when ownership registry is missing, corrupt, or mismatched
   -h, --help                      Show this help text
 USAGE
 }
@@ -55,6 +57,10 @@ parse_args() {
         ;;
       --allow-control-plane-remove)
         ALLOW_CONTROL_PLANE_REMOVE="true"
+        shift
+        ;;
+      --force-without-registry)
+        ALLOW_MISSING_REGISTRY="true"
         shift
         ;;
       --)
@@ -143,6 +149,7 @@ run_ansible_uninstall() {
     --tags "k3s_agent,node_gpu_runtime"
     -e "node_join_target=${TARGET_HOST}"
     -e "k3s_agent_join_mode=uninstall"
+    -e "k3s_agent_allow_missing_registry=${ALLOW_MISSING_REGISTRY}"
     -e "node_gpu_runtime_mode=uninstall"
   )
 
@@ -156,7 +163,7 @@ run_ansible_uninstall() {
     sudo_wrapper=(sudo --preserve-env=NODE_JOIN_TARGET,ANSIBLE_CONFIG)
   fi
 
-  log "Running host-side uninstall placeholder for ${TARGET_HOST}"
+  log "Running host-side uninstall for ${TARGET_HOST}"
   (
     export NODE_JOIN_TARGET="${TARGET_HOST}"
     export ANSIBLE_CONFIG="${ANSIBLE_DIR}/ansible.cfg"

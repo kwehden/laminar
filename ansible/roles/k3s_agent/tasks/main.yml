@@ -2,6 +2,24 @@
 - name: Configure k3s agent mode facts
   ansible.builtin.set_fact:
     k3s_agent_join_mode: "{{ k3s_agent_join_mode | default('join', true) }}"
+    k3s_agent_allow_missing_registry: "{{ k3s_agent_allow_missing_registry | default(false, true) | bool }}"
+    k3s_agent_node_name: "{{ localk8s_node_name | default(ansible_facts['hostname'], true) }}"
+    k3s_agent_registry_parent_dir: /var/lib/localk8s
+    k3s_agent_registry_path: /var/lib/localk8s/node-join-owned-artifacts.yaml
+    k3s_agent_registry_managed_by: localk8s-node-join
+    k3s_agent_owned_artifacts:
+      files:
+        - /etc/systemd/system/k3s-agent.service
+        - /etc/systemd/system/k3s-agent.service.env
+        - /etc/rancher/k3s/config.yaml
+        - /usr/local/bin/k3s-agent
+        - /usr/local/bin/k3s-agent-uninstall.sh
+        - /var/lib/localk8s/node-join-owned-artifacts.yaml
+      directories:
+        - /var/lib/rancher/k3s/agent/containerd
+      services:
+        - k3s-agent
+      packages: []
 
 - name: Validate k3s agent mode
   ansible.builtin.assert:
@@ -26,7 +44,6 @@
 
 - name: Build base node join facts from inventory values
   ansible.builtin.set_fact:
-    k3s_agent_node_name: "{{ localk8s_node_name | default(ansible_facts['hostname'], true) }}"
     k3s_agent_node_profile: "{{ (localk8s_node_profile | default('cpu', true) | string | lower | trim) }}"
     k3s_agent_custom_node_labels: "{{ (localk8s_node_labels | default('', true)).split(',') | map('trim') | reject('equalto', '') | list }}"
     k3s_agent_node_taints: "{{ (localk8s_node_taints | default('', true)).split(',') | map('trim') | reject('equalto', '') | list }}"
@@ -95,6 +112,7 @@
     executable: /bin/bash
     creates: /etc/systemd/system/k3s-agent.service
   no_log: true
+  register: k3s_agent_install_result
   when: k3s_agent_join_mode == 'join'
 
 - name: Ensure k3s-agent service is enabled and running
@@ -112,6 +130,180 @@
   when:
     - k3s_agent_join_mode == 'join'
     - k3s_agent_config_file is changed
+
+- name: Ensure ownership registry parent directory exists
+  ansible.builtin.file:
+    path: "{{ k3s_agent_registry_parent_dir }}"
+    state: directory
+    mode: "0755"
+  when: k3s_agent_join_mode == 'join'
+
+- name: Check ownership registry presence
+  ansible.builtin.stat:
+    path: "{{ k3s_agent_registry_path }}"
+  register: k3s_agent_registry_stat
+  when: k3s_agent_join_mode in ['join', 'uninstall']
+
+- name: Initialize registry parse status
+  ansible.builtin.set_fact:
+    k3s_agent_registry_parse_failed: false
+  when: k3s_agent_join_mode in ['join', 'uninstall']
+
+- name: Read ownership registry when present
+  ansible.builtin.slurp:
+    path: "{{ k3s_agent_registry_path }}"
+  register: k3s_agent_registry_slurp
+  when:
+    - k3s_agent_join_mode in ['join', 'uninstall']
+    - k3s_agent_registry_stat.stat.exists
+
+- name: Parse existing ownership registry
+  block:
+    - name: Decode ownership registry content
+      ansible.builtin.set_fact:
+        k3s_agent_registry_existing: "{{ k3s_agent_registry_slurp.content | b64decode | from_yaml }}"
+  rescue:
+    - name: Mark ownership registry parse failure
+      ansible.builtin.set_fact:
+        k3s_agent_registry_parse_failed: true
+        k3s_agent_registry_existing: {}
+  when:
+    - k3s_agent_join_mode in ['join', 'uninstall']
+    - k3s_agent_registry_stat.stat.exists
+
+- name: Capture join reconciliation state
+  ansible.builtin.set_fact:
+    k3s_agent_join_reconciled_changed: >-
+      {{
+        (k3s_agent_config_file is changed) or
+        (k3s_agent_install_result is changed)
+      }}
+    k3s_agent_registry_last_reconciled_utc: >-
+      {{
+        k3s_agent_registry_existing.last_reconciled_utc
+          if (
+            k3s_agent_registry_stat.stat.exists and
+            not k3s_agent_registry_parse_failed and
+            (k3s_agent_registry_existing.last_reconciled_utc is defined) and
+            not ((k3s_agent_config_file is changed) or (k3s_agent_install_result is changed))
+          )
+          else lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ')
+      }}
+  when: k3s_agent_join_mode == 'join'
+
+- name: Write ownership registry
+  ansible.builtin.copy:
+    dest: "{{ k3s_agent_registry_path }}"
+    mode: "0644"
+    content: |
+      {{ {
+        'schema_version': 1,
+        'node_name': k3s_agent_node_name,
+        'managed_by': k3s_agent_registry_managed_by,
+        'artifacts': k3s_agent_owned_artifacts,
+        'last_reconciled_utc': k3s_agent_registry_last_reconciled_utc
+      } | to_nice_yaml(indent=2, sort_keys=False) }}
+  when: k3s_agent_join_mode == 'join'
+
+- name: Read ownership registry for uninstall decisions
+  ansible.builtin.assert:
+    that:
+      - k3s_agent_registry_existing is mapping
+      - k3s_agent_registry_existing.schema_version is defined
+      - (k3s_agent_registry_existing.schema_version | int) == 1
+      - k3s_agent_registry_existing.managed_by == k3s_agent_registry_managed_by
+      - k3s_agent_registry_existing.node_name is defined
+      - k3s_agent_registry_existing.artifacts is mapping
+    fail_msg: >-
+      Ownership registry at {{ k3s_agent_registry_path }} is missing or invalid.
+      Refusing to uninstall without a valid registry unless explicitly overridden.
+  when:
+    - k3s_agent_join_mode == 'uninstall'
+    - k3s_agent_registry_stat.stat.exists
+    - not k3s_agent_registry_parse_failed
+
+- name: Detect ownership registry node-name mismatch
+  ansible.builtin.set_fact:
+    k3s_agent_registry_node_mismatch: "{{ k3s_agent_registry_existing.node_name != k3s_agent_node_name }}"
+  when:
+    - k3s_agent_join_mode == 'uninstall'
+    - k3s_agent_registry_stat.stat.exists
+    - not k3s_agent_registry_parse_failed
+
+- name: Fail when ownership registry node-name mismatches and override is disabled
+  ansible.builtin.fail:
+    msg: >-
+      Ownership registry node_name '{{ k3s_agent_registry_existing.node_name }}'
+      does not match requested node '{{ k3s_agent_node_name }}'.
+      Re-run with k3s_agent_allow_missing_registry=true only if you intentionally
+      accept the conservative fallback cleanup scope.
+  when:
+    - k3s_agent_join_mode == 'uninstall'
+    - k3s_agent_registry_stat.stat.exists
+    - not k3s_agent_registry_parse_failed
+    - k3s_agent_registry_node_mismatch
+    - not k3s_agent_allow_missing_registry
+
+- name: Use fallback cleanup scope when registry node-name mismatches and override is enabled
+  ansible.builtin.set_fact:
+    k3s_agent_registry_effective_artifacts: "{{ k3s_agent_owned_artifacts }}"
+  when:
+    - k3s_agent_join_mode == 'uninstall'
+    - k3s_agent_registry_stat.stat.exists
+    - not k3s_agent_registry_parse_failed
+    - k3s_agent_registry_node_mismatch
+    - k3s_agent_allow_missing_registry
+
+- name: Fail when ownership registry is corrupt and override is disabled
+  ansible.builtin.fail:
+    msg: >-
+      Ownership registry at {{ k3s_agent_registry_path }} is corrupt.
+      Re-run with k3s_agent_allow_missing_registry=true only if you intentionally accept the conservative fallback cleanup scope.
+  when:
+    - k3s_agent_join_mode == 'uninstall'
+    - k3s_agent_registry_stat.stat.exists
+    - k3s_agent_registry_parse_failed
+    - not k3s_agent_allow_missing_registry
+
+- name: Use fallback cleanup scope when registry is corrupt and override is enabled
+  ansible.builtin.set_fact:
+    k3s_agent_registry_effective_artifacts: "{{ k3s_agent_owned_artifacts }}"
+  when:
+    - k3s_agent_join_mode == 'uninstall'
+    - k3s_agent_registry_stat.stat.exists
+    - k3s_agent_registry_parse_failed
+    - k3s_agent_allow_missing_registry
+
+- name: Fail when ownership registry is missing and override is disabled
+  ansible.builtin.fail:
+    msg: >-
+      Ownership registry not found at {{ k3s_agent_registry_path }}.
+      Re-run with k3s_agent_allow_missing_registry=true only if you intentionally accept the conservative fallback cleanup scope.
+  when:
+    - k3s_agent_join_mode == 'uninstall'
+    - not k3s_agent_registry_stat.stat.exists
+    - not k3s_agent_allow_missing_registry
+
+- name: Use fallback cleanup scope when registry is missing and override is enabled
+  ansible.builtin.set_fact:
+    k3s_agent_registry_effective_artifacts: "{{ k3s_agent_owned_artifacts }}"
+  when:
+    - k3s_agent_join_mode == 'uninstall'
+    - not k3s_agent_registry_stat.stat.exists
+    - k3s_agent_allow_missing_registry
+
+- name: Use registry cleanup scope
+  ansible.builtin.set_fact:
+    k3s_agent_registry_effective_artifacts:
+      files: "{{ k3s_agent_registry_existing.artifacts.files | default([]) }}"
+      directories: "{{ k3s_agent_registry_existing.artifacts.directories | default([]) }}"
+      services: "{{ k3s_agent_registry_existing.artifacts.services | default([]) }}"
+      packages: "{{ k3s_agent_registry_existing.artifacts.packages | default([]) }}"
+  when:
+    - k3s_agent_join_mode == 'uninstall'
+    - k3s_agent_registry_stat.stat.exists
+    - not k3s_agent_registry_parse_failed
+    - not k3s_agent_registry_node_mismatch
 
 - name: Stop and disable k3s-agent service before uninstall
   ansible.builtin.systemd:
@@ -134,3 +326,47 @@
   when:
     - k3s_agent_join_mode == 'uninstall'
     - k3s_agent_uninstall_script.stat.exists
+
+- name: Remove owned packages
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: absent
+    purge: true
+    autoremove: true
+    update_cache: false
+  loop: "{{ k3s_agent_registry_effective_artifacts.packages | default([]) }}"
+  when:
+    - k3s_agent_join_mode == 'uninstall'
+    - (k3s_agent_registry_effective_artifacts.packages | default([]) | length) > 0
+
+- name: Remove owned services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+    daemon_reload: true
+  loop: "{{ k3s_agent_registry_effective_artifacts.services | default([]) }}"
+  failed_when: false
+  when: k3s_agent_join_mode == 'uninstall'
+
+- name: Remove owned files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ k3s_agent_registry_effective_artifacts.files | default([]) }}"
+  when: k3s_agent_join_mode == 'uninstall'
+
+- name: Remove owned directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ k3s_agent_registry_effective_artifacts.directories | default([]) }}"
+  when: k3s_agent_join_mode == 'uninstall'
+
+- name: Remove ownership registry after uninstall
+  ansible.builtin.file:
+    path: "{{ k3s_agent_registry_path }}"
+    state: absent
+  when:
+    - k3s_agent_join_mode == 'uninstall'
+    - k3s_agent_registry_stat.stat.exists

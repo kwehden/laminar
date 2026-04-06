@@ -32,6 +32,12 @@ Worker validation helpers:
 - `scripts/validate-cpu-worker.sh` checks CPU worker labels and canary scheduling.
 - `scripts/validate-gpu-worker.sh` checks GPU worker labels and runs an ephemeral CUDA pod that executes `nvidia-smi`.
 
+`NODE-TASK-004` removal behavior:
+- `scripts/remove-node.sh` cordons, drains, and deletes the node object before host uninstall
+- remote uninstall is gated by `/var/lib/localk8s/node-join-owned-artifacts.yaml`
+- missing or corrupt registry state fails removal by default
+- break-glass mode must be explicit with `--force-without-registry`
+
 ## Inventory Contract
 Use [inventory.example.ini](./inventory.example.ini) as the template.
 
@@ -90,3 +96,4 @@ Best-effort probes (for example UDP VXLAN probes) may warn without hard-failing 
 See [ownership-registry.md](./ownership-registry.md).
 
 Uninstall/remove workflows must only act on artifacts listed in the local registry.
+If the registry is unavailable or invalid, destructive cleanup must stop unless an explicit break-glass override is set.

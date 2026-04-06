@@ -195,6 +195,18 @@ Re-run reconciliation safely:
 ./scripts/bootstrap.sh
 ```
 
+Remove a worker node with controlled cleanup:
+
+```bash
+./scripts/remove-node.sh --node <k8s-node-name> --target <inventory-host>
+```
+
+Removal behavior is ownership-registry gated:
+- the workflow cordons, drains, and deletes the node object first
+- remote uninstall only cleans artifacts listed in `/var/lib/localk8s/node-join-owned-artifacts.yaml`
+- if the registry is missing or corrupt, removal fails by default
+- break-glass mode is explicit: `--force-without-registry`
+
 Convergence check (requires interactive sudo):
 
 ```bash

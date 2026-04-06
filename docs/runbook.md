@@ -38,6 +38,17 @@ If migrating host Ollama to in-cluster:
 ./scripts/remove-host-ollama.sh
 ```
 
+For controlled node removal, use:
+
+```bash
+./scripts/remove-node.sh --node <k8s-node-name> --target <inventory-host>
+```
+
+Removal is ownership-registry gated:
+- missing or corrupt `/var/lib/localk8s/node-join-owned-artifacts.yaml` fails removal by default
+- remote cleanup is restricted to registry-listed artifacts
+- break-glass override must be explicit: `--force-without-registry`
+
 Before GPU worker rollout, run CPU worker canary validation:
 
 ```bash
