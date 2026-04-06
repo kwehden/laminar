@@ -1,4 +1,4 @@
-# LocalK8s GPU Ray Platform Design
+# Laminar GPU Ray Platform Design
 
 ## Overview
 This design implements a deterministic, single-host platform for concurrent GPU workloads using k3s, NVIDIA Kubernetes integration, and one KubeRay-managed RayCluster. The design prioritizes reproducibility and low operational burden over multi-tenant flexibility, and treats bootstrap reruns as reconciliation to the same Day-0 desired state for all project-managed assets.

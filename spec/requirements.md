@@ -1,4 +1,4 @@
-# LocalK8s GPU Ray Platform Requirements
+# Laminar GPU Ray Platform Requirements
 
 ## Functional Requirements (EARS, numbered with IDs)
 - REQ-001: The system shall install and run a single-node k3s cluster on the target host.

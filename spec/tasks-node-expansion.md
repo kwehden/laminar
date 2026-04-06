@@ -1,4 +1,4 @@
-# LocalK8s Node Expansion Tasks
+# Laminar Node Expansion Tasks
 
 ## Task Graph Overview
 Order is dependency-driven: define node-join configuration and contracts, implement join/remove automation, add worker GPU runtime path, then validate placement and convergence behavior.

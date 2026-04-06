@@ -1,4 +1,4 @@
-# LocalK8s GPU Ray Platform Context
+# Laminar GPU Ray Platform Context
 
 ## Problem Statement
 The project needs a repeatable way to run concurrent GPU Ray workloads on a single host without manual reconfiguration between runs. Current state is design intent only; no executable platform assets exist yet.

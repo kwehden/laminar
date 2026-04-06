@@ -1,4 +1,4 @@
-# LocalK8s Node Expansion Context
+# Laminar Node Expansion Context
 
 ## Problem Statement
 The current platform is a single-node k3s cluster on `laminarflow`. We need a repeatable way to attach a second machine on the LAN as a cluster worker, including GPU enablement, while preserving current KubeRay and Ollama functionality.

@@ -25,7 +25,7 @@ It provisions and reconciles a control-plane host with NVIDIA runtime/device plu
 
 ## What This Repo Does
 
-- Installs and reconciles a **single-node k3s** cluster.
+- Installs and reconciles a **k3s control-plane host**, with optional CPU/GPU worker expansion.
 - Supports optional **remote worker expansion** via scripted join/remove flows.
 - Enables **NVIDIA GPU scheduling** with time-slicing.
 - Deploys **KubeRay** and a GPU-backed `RayCluster`.

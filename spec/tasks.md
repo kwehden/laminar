@@ -1,4 +1,4 @@
-# LocalK8s GPU Ray Platform Tasks
+# Laminar GPU Ray Platform Tasks
 
 ## Task Graph Overview (short)
 Execution order is mostly linear due to platform dependencies: establish host/runtime prerequisites, pin versions and ownership scope, install cluster and GPU stack, deploy Ray, then validate and operationalize. The final step is explicit convergence verification by re-running bootstrap and confirming no stale managed configuration remains.

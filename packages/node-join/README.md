@@ -1,6 +1,6 @@
 # Node Join Package
 
-This package defines the node-join baseline for adding remote worker nodes to an existing LocalK8s cluster.
+This package defines the node-join baseline for adding remote worker nodes to an existing Laminar cluster.
 
 Current scope:
 - inventory contract

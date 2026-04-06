@@ -1,4 +1,4 @@
-# LocalK8s Node Expansion Requirements
+# Laminar Node Expansion Requirements
 
 ## Functional Requirements (EARS)
 - REQ-NODE-001: The system shall keep the existing `laminarflow` k3s server as control-plane authority for node expansion.

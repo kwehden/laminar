@@ -1,7 +1,7 @@
-# LocalK8s Runbook
+# Laminar Runbook
 
 ## Purpose
-This runbook records install, reconciliation, and validation evidence for the single-node LocalK8s baseline.
+This runbook records install, reconciliation, and validation evidence for the Laminar control-plane baseline.
 
 Use it to capture:
 - what was changed

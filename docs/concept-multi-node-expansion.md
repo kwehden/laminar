@@ -1,7 +1,7 @@
-# System2 Concept: Multi-Node Expansion for LocalK8s
+# System2 Concept: Multi-Node Expansion for Laminar
 
 ## Gate 0 Scope
-Explore how to add a second machine (with an additional GPU) as a cluster member, while preserving the current `localk8s` Day-0 convergence model.
+Explore how to add a second machine (with an additional GPU) as a cluster member, while preserving the current Laminar Day-0 convergence model.
 
 Decision question:
 - Do we need to move from k3s to upstream/kubeadm Kubernetes to support this?  

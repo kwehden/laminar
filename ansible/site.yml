@@ -1,5 +1,5 @@
 ---
-- name: Configure local host for localk8s
+- name: Configure local host for Laminar
   hosts: localhost
   become: true
   gather_facts: true

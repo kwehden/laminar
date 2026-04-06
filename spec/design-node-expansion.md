@@ -1,7 +1,7 @@
-# LocalK8s Node Expansion Design
+# Laminar Node Expansion Design
 
 ## Overview
-This design extends LocalK8s from single-node to two-node operation by adding a remote k3s agent worker to the existing `laminarflow` server. It preserves current cluster stack choices (k3s, KubeRay, Ollama, Helmfile, Ansible) and adds a controlled join/remove automation path.
+This design extends Laminar from single-node to two-node operation by adding a remote k3s agent worker to the existing `laminarflow` server. It preserves current cluster stack choices (k3s, KubeRay, Ollama, Helmfile, Ansible) and adds a controlled join/remove automation path.
 
 ## Architecture
 - Existing node (`laminarflow`):
