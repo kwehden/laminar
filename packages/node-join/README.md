@@ -39,6 +39,8 @@ Worker validation helpers:
 - break-glass mode must be explicit with `--force-without-registry`
 
 ## Inventory Contract
+Run node-join commands from the repo root and use `./packages/node-join/inventory.local.ini` style paths.
+
 Use [inventory.example.ini](./inventory.example.ini) as the template.
 
 Required host-level fields:
@@ -49,6 +51,7 @@ Common optional fields:
 - `localk8s_node_profile` (`cpu` or `gpu`, default `cpu`)
 - `localk8s_gpu_enable` (`true`/`false`, legacy compatibility fallback; prefer `localk8s_node_profile`)
 - `localk8s_node_name` (explicit Kubernetes node name override; defaults to remote `hostname -s`)
+- `ansible_ssh_private_key_file` (path to private key on control-plane host when not using default SSH identity)
 - `localk8s_node_labels` (comma-separated `key=value`, appended to profile defaults)
 - `localk8s_node_taints` (comma-separated `key=value:Effect`)
 - `localk8s_allow_control_plane_remove` (`false` by default)
@@ -65,10 +68,29 @@ Reserved labels:
 These are profile-managed and must not be set in `localk8s_node_labels`.
 
 Required group-level fields (`[node_join_targets:vars]`):
-- `localk8s_k3s_url` (example: `https://<control-plane-hostname>:6443`)
+- `localk8s_k3s_url` (example: `https://<control-plane-endpoint>:6443`, typically from `LOCAL_CONTROL_PLANE_ENDPOINT` in `config/local.env`)
 - `ansible_become=true`
 
+Privilege escalation contract:
+- the automation SSH user on workers must be able to `sudo`
+- if `--ask-become-pass` is unstable in your environment, configure passwordless sudo for the automation user on worker hosts
+
 Join workflow also consumes pinned `K3S_VERSION` from `config/versions.env` (or `K3S_VERSION` env override).
+
+### SSH Authentication Bootstrap
+Use the interactive helper from the repo root:
+
+```bash
+./scripts/setup-node-ssh.sh
+```
+
+This will generate/use a dedicated key, optionally install it with `ssh-copy-id`, optionally test SSH, and print the inventory host line with `ansible_ssh_private_key_file`.
+
+Before running `join-node.sh`, verify SSH + inventory parsing:
+
+```bash
+ansible -i ./packages/node-join/inventory.local.ini polecat -m ping -e ansible_become=false
+```
 
 ## Secure Token Input Pattern
 Do not store tokens in tracked files.

@@ -13,4 +13,5 @@
 
 # Host-local overrides
 config/local.env
+packages/node-join/inventory.local.ini
 AGENTS.md

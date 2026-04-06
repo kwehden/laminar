@@ -6,6 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ANSIBLE_DIR="${PROJECT_ROOT}/ansible"
 VERSIONS_CONFIG_FILE="${PROJECT_ROOT}/config/versions.env"
+LOCAL_ENV_FILE="${PROJECT_ROOT}/config/local.env"
 KUBECONFIG_PATH="${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}"
 JOIN_READY_TIMEOUT_SECONDS="${JOIN_READY_TIMEOUT_SECONDS:-300}"
 
@@ -60,7 +61,7 @@ parse_args() {
         ;;
       --inventory)
         [[ $# -ge 2 ]] || die "--inventory requires a value"
-        INVENTORY_PATH="$2"
+        INVENTORY_PATH="$(make_absolute_path "$2")"
         shift 2
         ;;
       --gpu)
@@ -88,6 +89,15 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "Missing required command: $1"
 }
 
+make_absolute_path() {
+  local input_path="$1"
+  if [[ "${input_path}" == /* ]]; then
+    printf '%s\n' "${input_path}"
+    return
+  fi
+  printf '%s/%s\n' "$(pwd)" "${input_path}"
+}
+
 load_versions() {
   local env_k3s_version="${K3S_VERSION:-}"
   [[ -f "${VERSIONS_CONFIG_FILE}" ]] || die "Missing versions config: ${VERSIONS_CONFIG_FILE}"
@@ -113,8 +123,30 @@ prompt_for_token_if_needed() {
 
 resolve_k3s_url_from_inventory() {
   local inventory_json
+  local inventory_url=""
   inventory_json="$(ansible-inventory -i "${INVENTORY_PATH}" --list)"
-  jq -r '.node_join_targets.vars.localk8s_k3s_url // empty' <<<"${inventory_json}"
+  inventory_url="$(jq -r '.node_join_targets.vars.localk8s_k3s_url // empty' <<<"${inventory_json}")"
+  if [[ -n "${inventory_url}" ]]; then
+    printf '%s\n' "${inventory_url}"
+    return
+  fi
+
+  if [[ -n "${TARGET_HOST}" ]]; then
+    ansible-inventory -i "${INVENTORY_PATH}" --host "${TARGET_HOST}" 2>/dev/null \
+      | jq -r '.localk8s_k3s_url // empty'
+  fi
+}
+
+resolve_k3s_url_from_local_env() {
+  local cp_endpoint=""
+  if [[ -f "${LOCAL_ENV_FILE}" ]]; then
+    # shellcheck disable=SC1090
+    source "${LOCAL_ENV_FILE}"
+    cp_endpoint="${LOCAL_CONTROL_PLANE_ENDPOINT:-}"
+  fi
+  if [[ -n "${cp_endpoint}" ]]; then
+    printf 'https://%s:6443\n' "${cp_endpoint}"
+  fi
 }
 
 resolve_node_profile() {
@@ -184,29 +216,29 @@ resolve_host_port_from_url() {
   local server_endpoint="$1"
   local server_host_out="$2"
   local server_port_out="$3"
-  local server_host
-  local server_port
+  local parsed_host
+  local parsed_port
 
   server_endpoint="${server_endpoint#*://}"
   server_endpoint="${server_endpoint%%/*}"
 
   if [[ "${server_endpoint}" =~ ^\[([0-9a-fA-F:]+)\](:([0-9]+))?$ ]]; then
-    server_host="${BASH_REMATCH[1]}"
-    server_port="${BASH_REMATCH[3]:-6443}"
+    parsed_host="${BASH_REMATCH[1]}"
+    parsed_port="${BASH_REMATCH[3]:-6443}"
   elif [[ "${server_endpoint}" == *:* ]]; then
-    server_host="${server_endpoint%:*}"
-    server_port="${server_endpoint##*:}"
+    parsed_host="${server_endpoint%:*}"
+    parsed_port="${server_endpoint##*:}"
   else
-    server_host="${server_endpoint}"
-    server_port="6443"
+    parsed_host="${server_endpoint}"
+    parsed_port="6443"
   fi
 
-  if [[ "${server_host}" == *:* ]]; then
+  if [[ "${parsed_host}" == *:* ]]; then
     die "IPv6 k3s API endpoints are not supported by this script preflight yet. Use an IPv4/hostname endpoint."
   fi
 
-  printf -v "${server_host_out}" '%s' "${server_host}"
-  printf -v "${server_port_out}" '%s' "${server_port}"
+  printf -v "${server_host_out}" '%s' "${parsed_host}"
+  printf -v "${server_port_out}" '%s' "${parsed_port}"
 }
 
 resolve_worker_host_address() {
@@ -230,6 +262,7 @@ run_remote_preflight() {
     -i "${INVENTORY_PATH}"
     "${TARGET_HOST}"
     -m shell
+    -e "ansible_become=false"
     -a "timeout 3 bash -lc '>/dev/tcp/${server_host}/${server_port}'"
   )
 
@@ -239,6 +272,7 @@ run_remote_preflight() {
 
   log "Checking worker->control-plane VXLAN path (${server_host}:8472 udp best-effort)"
   if ! ansible -i "${INVENTORY_PATH}" "${TARGET_HOST}" -m shell \
+    -e "ansible_become=false" \
     -a "timeout 3 bash -lc 'echo >/dev/udp/${server_host}/8472'" >/dev/null; then
     log "WARN: VXLAN UDP/8472 probe failed (best-effort check). Continuing; verify CNI path if join fails."
   fi
@@ -267,6 +301,9 @@ preflight() {
   fi
   if [[ -z "${K3S_SERVER_URL}" ]]; then
     K3S_SERVER_URL="$(resolve_k3s_url_from_inventory)"
+  fi
+  if [[ -z "${K3S_SERVER_URL}" ]]; then
+    K3S_SERVER_URL="$(resolve_k3s_url_from_local_env)"
   fi
   [[ -n "${K3S_SERVER_URL}" ]] || die "k3s server URL is required (--k3s-url, K3S_URL, or inventory var localk8s_k3s_url)"
   prompt_for_token_if_needed
@@ -322,7 +359,7 @@ resolve_node_name() {
   fi
 
   discovered_node_name="$(
-    ansible -i "${INVENTORY_PATH}" "${TARGET_HOST}" -m shell -a "hostname -s" -o 2>/dev/null \
+    ansible -i "${INVENTORY_PATH}" "${TARGET_HOST}" -m shell -e "ansible_become=false" -a "hostname -s" -o 2>/dev/null \
       | sed -E 's/^.*>>[[:space:]]*//'
   )"
   discovered_node_name="$(trim_whitespace "${discovered_node_name}")"

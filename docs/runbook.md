@@ -9,6 +9,8 @@ Use it to capture:
 - what passed/failed
 - what follow-up is required
 
+All commands below assume execution from repo root (`~/projects/localk8s`).
+
 ## Environment Snapshot
 - Date:
 - Operator:
@@ -72,6 +74,8 @@ kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get nodes
 ./scripts/validate-gpu-worker.sh
 kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml describe node "$(kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get nodes -o jsonpath='{.items[0].metadata.name}')" | rg 'nvidia.com/gpu'
 kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get raycluster -n ray
+kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml -n ray get pods -l ray.io/group=cpu-workers -o wide
+kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml -n ray get pods -l ray.io/group=gpu-workers -o wide
 kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get pods -n ollama
 curl -fsS "http://${LOCAL_HOSTNAME:-$(hostname -s)}/ray/" >/dev/null
 curl -fsS "http://${LOCAL_HOSTNAME:-$(hostname -s)}/k3s/" >/dev/null

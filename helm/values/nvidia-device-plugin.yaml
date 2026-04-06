@@ -4,8 +4,17 @@
 gfd:
   enabled: false
 
-# Single-node baseline: do not require NFD/GFD node labels for scheduling.
-affinity: null
+# Multi-node baseline: avoid CPU-only worker nodes while still allowing
+# unlabeled control-plane and future GPU worker nodes.
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: localk8s.io/worker-class
+              operator: NotIn
+              values:
+                - cpu
 runtimeClassName: nvidia
 
 config:

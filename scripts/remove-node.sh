@@ -52,7 +52,7 @@ parse_args() {
         ;;
       --inventory)
         [[ $# -ge 2 ]] || die "--inventory requires a value"
-        INVENTORY_PATH="$2"
+        INVENTORY_PATH="$(make_absolute_path "$2")"
         shift 2
         ;;
       --allow-control-plane-remove)
@@ -81,6 +81,15 @@ parse_args() {
 
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "Missing required command: $1"
+}
+
+make_absolute_path() {
+  local input_path="$1"
+  if [[ "${input_path}" == /* ]]; then
+    printf '%s\n' "${input_path}"
+    return
+  fi
+  printf '%s/%s\n' "$(pwd)" "${input_path}"
 }
 
 assert_inventory_contract() {

@@ -29,7 +29,7 @@ It provisions and reconciles a control-plane host with NVIDIA runtime/device plu
 - Installs and reconciles a **k3s control-plane host**, with optional CPU/GPU worker expansion.
 - Supports optional **remote worker expansion** via scripted join/remove flows.
 - Enables **NVIDIA GPU scheduling** with time-slicing.
-- Deploys **KubeRay** and a GPU-backed `RayCluster`.
+- Deploys **KubeRay** and a hybrid `RayCluster` (`gpu-workers` + `cpu-workers`).
 - Deploys **Ollama in-cluster** on GPU with persistent model storage.
 - Exposes gateway routes via Traefik:
   - `http://<your-local-hostname>/ray/`
@@ -76,11 +76,14 @@ See [`docs/platform-prereqs.md`](./docs/platform-prereqs.md) for:
 ```
 
 `setup.sh` writes `config/local.env` with `LOCAL_HOSTNAME` for local route checks and examples.
+It also records `LOCAL_ADDRESS_MODE` (`dns` or `ip`) and `LOCAL_CONTROL_PLANE_ENDPOINT` so node-join flows can stay consistent with your addressing strategy.
 
 Optional shell persistence:
 
 ```bash
 echo 'export LOCAL_HOSTNAME="<your-local-hostname>"' >> ~/.bashrc
+echo 'export LOCAL_ADDRESS_MODE="dns"' >> ~/.bashrc
+echo 'export LOCAL_CONTROL_PLANE_ENDPOINT="<your-control-plane-endpoint>"' >> ~/.bashrc
 # or ~/.zshrc
 ```
 
@@ -112,18 +115,47 @@ OLLAMA_MODEL_DISK_UUID=<your-disk-uuid> ./scripts/mount-ollama-model-disk.sh
 
 ## Node Expansion (Optional)
 
+All commands in this section assume you run from the repo root (`~/projects/localk8s`), not from a subdirectory.
+
 Use the inventory in `packages/node-join/inventory.example.ini` as the template for remote workers.
+
+### SSH Key Setup for Worker Join
+
+Use the interactive helper (recommended):
+
+```bash
+./scripts/setup-node-ssh.sh
+```
+
+The helper will:
+- generate a per-node SSH key (if missing)
+- optionally run `ssh-copy-id`
+- optionally run a connectivity test
+- print the exact inventory snippet to paste into `packages/node-join/inventory.local.ini`
+
+If you prefer manual setup, `ssh-keygen`/`ssh-copy-id` still works.
+
+Validate inventory + SSH before join:
+
+```bash
+ansible -i ./packages/node-join/inventory.local.ini polecat -m ping -e ansible_become=false
+```
+
+Privilege escalation requirement:
+- Worker hosts must allow `sudo` for the automation user.
+- If `--ask-become-pass` is unreliable on your distro/ssh prompt setup, configure passwordless sudo for the automation user on the worker host.
+- `cpu-workers` in Ray require at least one joined node labeled `localk8s.io/worker-class=cpu`.
 
 Join a worker:
 
 ```bash
-K3S_JOIN_TOKEN='<token>' ./scripts/join-node.sh --target polecat
+K3S_JOIN_TOKEN='<token>' ./scripts/join-node.sh --target polecat --inventory ./packages/node-join/inventory.local.ini
 ```
 
 Join a GPU worker:
 
 ```bash
-K3S_JOIN_TOKEN='<token>' ./scripts/join-node.sh --target standpunkt --gpu
+K3S_JOIN_TOKEN='<token>' ./scripts/join-node.sh --target standpunkt --gpu --inventory ./packages/node-join/inventory.local.ini
 ```
 
 Remove a worker (controlled cleanup):

@@ -143,7 +143,7 @@ spec:
   containers:
   - name: canary
     image: ${POD_IMAGE}
-    command: ["sh", "-c", "echo cpu-canary-ok on $(hostname)"]
+    command: ["sh", "-c", "echo cpu-canary-ok on \$(hostname)"]
 EOF_POD
 
   scheduled_node="$(k -n "${NAMESPACE}" get pod "${POD_NAME}" -o jsonpath='{.spec.nodeName}')"

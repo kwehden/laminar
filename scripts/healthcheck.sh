@@ -35,9 +35,16 @@ check_node_ready() {
 }
 
 check_gpu_allocatable() {
-  local node_name
-  node_name="$(kubectl --kubeconfig "${KUBECONFIG_PATH}" get nodes -o jsonpath='{.items[0].metadata.name}')"
-  kubectl --kubeconfig "${KUBECONFIG_PATH}" describe node "${node_name}" | rg -n 'nvidia.com/gpu'
+  local gpu_alloc
+  gpu_alloc="$(kubectl --kubeconfig "${KUBECONFIG_PATH}" get nodes -o json | jq -r '.items[] | [.metadata.name, (.status.allocatable["nvidia.com/gpu"] // "0")] | @tsv')"
+
+  log "GPU allocatable by node:"
+  printf '%s\n' "${gpu_alloc}"
+
+  if ! awk -F'\t' '$2+0 > 0 { found=1 } END { exit(found ? 0 : 1) }' <<<"${gpu_alloc}"; then
+    log "no node advertises nvidia.com/gpu allocatable capacity"
+    exit 1
+  fi
 }
 
 check_ray_pods() {
@@ -60,7 +67,7 @@ check_k3s_dashboard() {
 
 main() {
   require_cmd kubectl
-  require_cmd rg
+  require_cmd jq
   require_cmd curl
 
   log "healthcheck starting"

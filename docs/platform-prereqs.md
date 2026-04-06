@@ -27,6 +27,7 @@ This document defines the host prerequisites Laminar assumes, the environment it
 - SSH connectivity from control-plane host to worker (`ansible_user` + sudo)
 - Worker can reach control-plane k3s API (`tcp/6443`)
 - Data-plane networking allowed for cluster operation
+- Recommended for automation stability: passwordless sudo for the worker automation user
 - GPU worker only:
   - NVIDIA driver installed
   - Toolkit/runtime setup succeeds (`node_gpu_runtime` role)
