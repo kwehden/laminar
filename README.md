@@ -114,6 +114,18 @@ OLLAMA_MODEL_DISK_UUID=<your-disk-uuid> ./scripts/mount-ollama-model-disk.sh
 
 Use the inventory in `packages/node-join/inventory.example.ini` as the template for remote workers.
 
+### SSH Key Setup for Worker Join
+
+Create a dedicated key on the control-plane host, install it on the worker, and test it:
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/polecat_ed25519 -C "laminar->polecat"
+ssh-copy-id -i ~/.ssh/polecat_ed25519.pub ubuntu@192.168.1.70
+ssh -i ~/.ssh/polecat_ed25519 ubuntu@192.168.1.70
+```
+
+If you use a non-default key, set it in inventory with `ansible_ssh_private_key_file`.
+
 Join a worker:
 
 ```bash

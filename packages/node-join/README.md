@@ -49,6 +49,7 @@ Common optional fields:
 - `localk8s_node_profile` (`cpu` or `gpu`, default `cpu`)
 - `localk8s_gpu_enable` (`true`/`false`, legacy compatibility fallback; prefer `localk8s_node_profile`)
 - `localk8s_node_name` (explicit Kubernetes node name override; defaults to remote `hostname -s`)
+- `ansible_ssh_private_key_file` (path to private key on control-plane host when not using default SSH identity)
 - `localk8s_node_labels` (comma-separated `key=value`, appended to profile defaults)
 - `localk8s_node_taints` (comma-separated `key=value:Effect`)
 - `localk8s_allow_control_plane_remove` (`false` by default)
@@ -69,6 +70,17 @@ Required group-level fields (`[node_join_targets:vars]`):
 - `ansible_become=true`
 
 Join workflow also consumes pinned `K3S_VERSION` from `config/versions.env` (or `K3S_VERSION` env override).
+
+### SSH Authentication Bootstrap
+If SSH key auth is not already configured for the worker:
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/polecat_ed25519 -C "laminar->polecat"
+ssh-copy-id -i ~/.ssh/polecat_ed25519.pub ubuntu@192.168.1.70
+ssh -i ~/.ssh/polecat_ed25519 ubuntu@192.168.1.70
+```
+
+Then set `ansible_ssh_private_key_file` on the worker host line in inventory.
 
 ## Secure Token Input Pattern
 Do not store tokens in tracked files.
