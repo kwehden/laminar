@@ -15,6 +15,8 @@ K3S_SERVER_TOKEN="${K3S_JOIN_TOKEN:-${K3S_TOKEN:-}}"
 INVENTORY_PATH="${PROJECT_ROOT}/packages/node-join/inventory.example.ini"
 K3S_VERSION="${K3S_VERSION:-}"
 GPU_MODE="skip"
+NODE_PROFILE_OVERRIDE=""
+NODE_PROFILE="cpu"
 EXTRA_ANSIBLE_ARGS=()
 
 log() {
@@ -34,12 +36,12 @@ Options:
   --target <host>      Inventory host to configure (required)
   --k3s-url <url>      k3s server URL (optional if K3S_URL env or inventory var localk8s_k3s_url is set)
   --inventory <path>   Ansible inventory path (default: packages/node-join/inventory.example.ini)
-  --gpu                Enable node GPU runtime role for target host
+  --gpu                Backward-compatible shortcut: force gpu node profile and enable GPU runtime role
   -h, --help           Show this help text
 
 Examples:
-  ${SCRIPT_NAME} --target worker-a --k3s-url https://laminarflow:6443 --inventory ./packages/node-join/inventory.example.ini
-  K3S_URL=https://laminarflow:6443 K3S_JOIN_TOKEN='***' ${SCRIPT_NAME} --target worker-a --gpu --inventory ./packages/node-join/inventory.example.ini
+  ${SCRIPT_NAME} --target polecat --k3s-url https://<control-plane-hostname>:6443 --inventory ./packages/node-join/inventory.example.ini
+  K3S_URL=https://<control-plane-hostname>:6443 K3S_JOIN_TOKEN='***' ${SCRIPT_NAME} --target standpunkt --gpu --inventory ./packages/node-join/inventory.example.ini
 USAGE
 }
 
@@ -63,6 +65,7 @@ parse_args() {
         ;;
       --gpu)
         GPU_MODE="enable"
+        NODE_PROFILE_OVERRIDE="gpu"
         shift
         ;;
       --)
@@ -112,6 +115,45 @@ resolve_k3s_url_from_inventory() {
   local inventory_json
   inventory_json="$(ansible-inventory -i "${INVENTORY_PATH}" --list)"
   jq -r '.node_join_targets.vars.localk8s_k3s_url // empty' <<<"${inventory_json}"
+}
+
+resolve_node_profile() {
+  local inventory_profile
+  local inventory_gpu_enable
+  local effective_profile
+
+  inventory_profile="$(get_host_inventory_var localk8s_node_profile)"
+  inventory_profile="$(trim_whitespace "${inventory_profile}")"
+  inventory_gpu_enable="$(get_host_inventory_var localk8s_gpu_enable)"
+  inventory_gpu_enable="${inventory_gpu_enable,,}"
+
+  if [[ -z "${inventory_profile}" || "${inventory_profile}" == "null" ]]; then
+    if [[ "${inventory_gpu_enable}" == "true" || "${inventory_gpu_enable}" == "1" || "${inventory_gpu_enable}" == "yes" ]]; then
+      effective_profile="gpu"
+    else
+      effective_profile="cpu"
+    fi
+  else
+    effective_profile="${inventory_profile,,}"
+  fi
+
+  if [[ -n "${NODE_PROFILE_OVERRIDE}" ]]; then
+    effective_profile="${NODE_PROFILE_OVERRIDE}"
+  fi
+
+  case "${effective_profile}" in
+    cpu|gpu) ;;
+    *)
+      die "Invalid localk8s_node_profile '${effective_profile}' for target '${TARGET_HOST}'. Allowed values: cpu, gpu."
+      ;;
+  esac
+
+  printf '%s\n' "${effective_profile}"
+}
+
+is_reserved_profile_label() {
+  local label="$1"
+  [[ "${label}" =~ ^localk8s\.io/(worker-class|ray-eligible|ollama-eligible)= ]]
 }
 
 get_host_inventory_var() {
@@ -219,6 +261,10 @@ preflight() {
   [[ -d "${ANSIBLE_DIR}" ]] || die "Ansible directory not found: ${ANSIBLE_DIR}"
   [[ -f "${INVENTORY_PATH}" ]] || die "Inventory not found: ${INVENTORY_PATH}"
   assert_inventory_contract
+  NODE_PROFILE="$(resolve_node_profile)"
+  if [[ "${GPU_MODE}" == "skip" && "${NODE_PROFILE}" == "gpu" ]]; then
+    GPU_MODE="enable"
+  fi
   if [[ -z "${K3S_SERVER_URL}" ]]; then
     K3S_SERVER_URL="$(resolve_k3s_url_from_inventory)"
   fi
@@ -244,6 +290,7 @@ run_join() {
     --tags "k3s_agent,node_gpu_runtime"
     -e "node_join_target=${TARGET_HOST}"
     -e "k3s_agent_join_mode=join"
+    -e "localk8s_node_profile=${NODE_PROFILE}"
     -e "node_gpu_runtime_mode=${GPU_MODE}"
   )
 
@@ -251,7 +298,7 @@ run_join() {
     ansible_cmd+=("${EXTRA_ANSIBLE_ARGS[@]}")
   fi
 
-  log "Running node join for target ${TARGET_HOST} (gpu_mode=${GPU_MODE})"
+  log "Running node join for target ${TARGET_HOST} (node_profile=${NODE_PROFILE}, gpu_mode=${GPU_MODE})"
   (
     export K3S_VERSION
     export K3S_SERVER_URL
@@ -317,6 +364,9 @@ apply_node_labels_and_taints() {
     for label in "${labels[@]}"; do
       label="$(trim_whitespace "${label}")"
       [[ -n "${label}" ]] || continue
+      if is_reserved_profile_label "${label}"; then
+        die "Custom label '${label}' attempts to override reserved profile-managed labels. Use localk8s_node_profile instead."
+      fi
       log "Applying node label ${label} on ${node_name}"
       kubectl --kubeconfig "${KUBECONFIG_PATH}" label node "${node_name}" "${label}" --overwrite >/dev/null
     done

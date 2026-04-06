@@ -13,6 +13,7 @@ It provisions k3s, NVIDIA runtime/device plugin, KubeRay, in-cluster Ollama, das
 - [What This Repo Does](#what-this-repo-does)
 - [Architecture](#architecture)
 - [Quick Start](#quick-start)
+- [CPU Worker Canary](#cpu-worker-canary)
 - [Tested Environment](#tested-environment)
 - [Access Endpoints](#access-endpoints)
 - [Model Management](#model-management)
@@ -87,6 +88,24 @@ Default configured disk UUID:
 ```bash
 ./scripts/bootstrap.sh
 ./scripts/healthcheck.sh
+```
+
+## CPU Worker Canary
+
+Before rolling out a GPU worker, validate remote worker provisioning on a CPU-only node:
+
+```bash
+./scripts/validate-cpu-worker.sh
+```
+
+Defaults:
+- target node: `polecat`
+- kubeconfig: `$KUBECONFIG` or `/etc/rancher/k3s/k3s.yaml`
+
+Optional target override:
+
+```bash
+./scripts/validate-cpu-worker.sh --node polecat --timeout 300s
 ```
 
 ## Tested Environment
