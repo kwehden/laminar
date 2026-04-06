@@ -1,7 +1,17 @@
 ---
 - name: Configure node GPU runtime mode facts
   ansible.builtin.set_fact:
-    node_gpu_runtime_mode: "{{ node_gpu_runtime_mode | default('skip', true) }}"
+    node_gpu_runtime_mode: "{{ node_gpu_runtime_mode | default('skip', true) | string | lower | trim }}"
+    node_gpu_runtime_apt_prereqs:
+      - ca-certificates
+      - curl
+      - gpg
+    node_gpu_runtime_repo_key_url: https://nvidia.github.io/libnvidia-container/gpgkey
+    node_gpu_runtime_repo_key_tmp: /tmp/nvidia-container-toolkit.gpg
+    node_gpu_runtime_repo_keyring: /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+    node_gpu_runtime_repo_file: /etc/apt/sources.list.d/nvidia-container-toolkit.list
+    node_gpu_runtime_config_template: /var/lib/rancher/k3s/agent/etc/containerd/config.toml.tmpl
+    node_gpu_runtime_config_rendered: /var/lib/rancher/k3s/agent/etc/containerd/config.toml
 
 - name: Validate node GPU runtime mode
   ansible.builtin.assert:
@@ -9,14 +19,170 @@
       - node_gpu_runtime_mode in ['enable', 'skip', 'uninstall']
     fail_msg: "node_gpu_runtime_mode must be one of: enable, skip, uninstall"
 
-- name: Explain placeholder behavior for GPU runtime enable
-  ansible.builtin.debug:
-    msg: >-
-      Placeholder role: would install/verify NVIDIA runtime components on {{ node_join_target | default('target host') }}.
+- name: Verify NVIDIA GPU visibility on host
+  ansible.builtin.command: nvidia-smi -L
+  register: node_gpu_runtime_nvidia_smi
+  changed_when: false
+  failed_when: false
   when: node_gpu_runtime_mode == 'enable'
 
-- name: Explain placeholder behavior for GPU runtime uninstall
+- name: Fail if nvidia-smi is unavailable
+  ansible.builtin.fail:
+    msg: "nvidia-smi is not available. Install or verify the NVIDIA driver on the worker host before enabling GPU runtime."
+  when:
+    - node_gpu_runtime_mode == 'enable'
+    - node_gpu_runtime_nvidia_smi.rc != 0
+
+- name: Ensure NVIDIA container toolkit apt prerequisites are present
+  ansible.builtin.apt:
+    name: "{{ node_gpu_runtime_apt_prereqs }}"
+    state: present
+    update_cache: true
+  when: node_gpu_runtime_mode == 'enable'
+
+- name: Configure NVIDIA container toolkit apt repository and package
+  block:
+    - name: Download NVIDIA container toolkit GPG key
+      ansible.builtin.get_url:
+        url: "{{ node_gpu_runtime_repo_key_url }}"
+        dest: "{{ node_gpu_runtime_repo_key_tmp }}"
+        mode: "0644"
+
+    - name: Create keyring directory
+      ansible.builtin.file:
+        path: /usr/share/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Install NVIDIA container toolkit keyring
+      ansible.builtin.command:
+        cmd: >-
+          gpg --dearmor --yes --output {{ node_gpu_runtime_repo_keyring }}
+          {{ node_gpu_runtime_repo_key_tmp }}
+      args:
+        creates: "{{ node_gpu_runtime_repo_keyring }}"
+
+    - name: Configure NVIDIA container toolkit apt source list
+      ansible.builtin.copy:
+        dest: "{{ node_gpu_runtime_repo_file }}"
+        content: |
+          deb [signed-by={{ node_gpu_runtime_repo_keyring }}] https://nvidia.github.io/libnvidia-container/stable/deb/$(ARCH) /
+          #deb [signed-by={{ node_gpu_runtime_repo_keyring }}] https://nvidia.github.io/libnvidia-container/experimental/deb/$(ARCH) /
+        mode: "0644"
+
+    - name: Install nvidia-container-toolkit package
+      ansible.builtin.apt:
+        name: nvidia-container-toolkit
+        state: present
+        update_cache: true
+
+    - name: Remove temporary NVIDIA container toolkit key
+      ansible.builtin.file:
+        path: "{{ node_gpu_runtime_repo_key_tmp }}"
+        state: absent
+  when: node_gpu_runtime_mode == 'enable'
+  rescue:
+    - name: Fail with NVIDIA toolkit installation guidance
+      ansible.builtin.fail:
+        msg: >-
+          Unable to install NVIDIA container toolkit. Validate access to
+          https://nvidia.github.io/libnvidia-container and rerun the join workflow.
+
+- name: Verify nvidia-ctk is available
+  ansible.builtin.command: nvidia-ctk --version
+  register: node_gpu_runtime_nvidia_ctk
+  changed_when: false
+  failed_when: false
+  when: node_gpu_runtime_mode == 'enable'
+
+- name: Fail if nvidia-ctk is unavailable
+  ansible.builtin.fail:
+    msg: >-
+      nvidia-ctk is not available after toolkit installation. Confirm the
+      nvidia-container-toolkit package installed successfully on the worker host.
+  when:
+    - node_gpu_runtime_mode == 'enable'
+    - node_gpu_runtime_nvidia_ctk.rc != 0
+
+- name: Assert k3s agent containerd template exists
+  ansible.builtin.stat:
+    path: "{{ node_gpu_runtime_config_template }}"
+  register: node_gpu_runtime_template_stat
+  when: node_gpu_runtime_mode == 'enable'
+
+- name: Assert rendered k3s agent containerd config exists
+  ansible.builtin.stat:
+    path: "{{ node_gpu_runtime_config_rendered }}"
+  register: node_gpu_runtime_rendered_stat
+  when: node_gpu_runtime_mode == 'enable'
+
+- name: Fail if k3s agent containerd template is missing
+  ansible.builtin.fail:
+    msg: >-
+      k3s agent containerd template was not found at {{ node_gpu_runtime_config_template }}.
+      Ensure the k3s agent install completed before enabling GPU runtime.
+  when:
+    - node_gpu_runtime_mode == 'enable'
+    - not node_gpu_runtime_template_stat.stat.exists
+
+- name: Configure k3s agent containerd template for NVIDIA runtime
+  ansible.builtin.shell: |
+    set -euo pipefail
+    before="$(sha256sum "{{ node_gpu_runtime_config_template }}" | awk '{print $1}')"
+    nvidia-ctk runtime configure \
+      --runtime=containerd \
+      --config="{{ node_gpu_runtime_config_template }}" \
+      --nvidia-runtime-name=nvidia
+    after="$(sha256sum "{{ node_gpu_runtime_config_template }}" | awk '{print $1}')"
+    if [[ "${before}" != "${after}" ]]; then
+      echo "updated"
+    fi
+  args:
+    executable: /bin/bash
+  register: node_gpu_runtime_configure_result
+  changed_when: "'updated' in node_gpu_runtime_configure_result.stdout"
+  when: node_gpu_runtime_mode == 'enable'
+
+- name: Restart k3s-agent after NVIDIA runtime config update
+  ansible.builtin.systemd:
+    name: k3s-agent
+    state: restarted
+  when:
+    - node_gpu_runtime_mode == 'enable'
+    - node_gpu_runtime_configure_result is changed
+
+- name: Verify k3s agent containerd template includes NVIDIA runtime
+  ansible.builtin.shell: |
+    set -euo pipefail
+    check_runtime_config() {
+      local config_path="$1"
+      [[ -f "${config_path}" ]] || return 1
+      grep -Eq 'runtimes\.nvidia|nvidia-container-runtime|nvidia-ctk' "${config_path}"
+    }
+
+    check_runtime_config "{{ node_gpu_runtime_config_template }}" && exit 0
+    check_runtime_config "{{ node_gpu_runtime_config_rendered }}" && exit 0
+    exit 1
+  args:
+    executable: /bin/bash
+  register: node_gpu_runtime_runtime_check
+  changed_when: false
+  failed_when: false
+  when: node_gpu_runtime_mode == 'enable'
+
+- name: Fail if NVIDIA runtime is not detected in the k3s agent template
+  ansible.builtin.fail:
+    msg: >-
+      k3s agent containerd template does not list an NVIDIA runtime entry.
+      Re-run bootstrap after verifying nvidia-ctk and the toolkit repo are installed correctly.
+  when:
+    - node_gpu_runtime_mode == 'enable'
+    - node_gpu_runtime_runtime_check.rc != 0
+
+- name: Note conservative uninstall behavior
   ansible.builtin.debug:
     msg: >-
-      Placeholder role: would remove node-scoped GPU runtime components listed in ownership registry.
+      node_gpu_runtime_mode=uninstall performs no destructive host cleanup in this task.
+      GPU runtime ownership cleanup will be handled by a dedicated ownership-registry-aware
+      uninstall workflow before any package or config removal is added here.
   when: node_gpu_runtime_mode == 'uninstall'

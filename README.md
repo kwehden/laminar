@@ -14,6 +14,7 @@ It provisions k3s, NVIDIA runtime/device plugin, KubeRay, in-cluster Ollama, das
 - [Architecture](#architecture)
 - [Quick Start](#quick-start)
 - [CPU Worker Canary](#cpu-worker-canary)
+- [GPU Worker Validation](#gpu-worker-validation)
 - [Tested Environment](#tested-environment)
 - [Access Endpoints](#access-endpoints)
 - [Model Management](#model-management)
@@ -107,6 +108,31 @@ Optional target override:
 ```bash
 ./scripts/validate-cpu-worker.sh --node polecat --timeout 300s
 ```
+
+## GPU Worker Validation
+
+After joining a GPU-capable worker, validate runtime and scheduling with:
+
+```bash
+./scripts/validate-gpu-worker.sh
+```
+
+Defaults:
+- target node: `standpunkt`
+- namespace: `ray`
+- timeout: `300s`
+- validation image: `nvidia/cuda:12.5.0-base-ubuntu22.04`
+
+Optional override example:
+
+```bash
+./scripts/validate-gpu-worker.sh --node standpunkt --namespace ray --timeout 300s
+```
+
+This check confirms:
+- the node is `Ready`
+- GPU profile labels are present
+- an ephemeral CUDA pod can request `nvidia.com/gpu=1` and run `nvidia-smi`
 
 ## Tested Environment
 

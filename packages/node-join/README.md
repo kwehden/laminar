@@ -1,25 +1,36 @@
 # Node Join Package
 
-This package defines `NODE-TASK-001` scaffolding for adding remote worker nodes to an existing LocalK8s cluster.
+This package defines the node-join baseline for adding remote worker nodes to an existing LocalK8s cluster.
 
 Current scope:
 - inventory contract
 - secure token input contract
 - network preflight contract
 - ownership-registry contract
+- worker validation handoff for CPU and GPU nodes
 
 Initial script/role skeletons now exist in:
 - `scripts/join-node.sh`
 - `scripts/remove-node.sh`
 - `ansible/roles/k3s_agent/tasks/main.yml`
 - `ansible/roles/node_gpu_runtime/tasks/main.yml`
+- `scripts/validate-cpu-worker.sh`
+- `scripts/validate-gpu-worker.sh`
 
 Current `NODE-TASK-002` behavior:
 - installs/configures k3s agent on target host
 - waits for node registration + `Ready` condition
 - applies configured labels/taints via `kubectl`
 
-`NODE-TASK-003` and `NODE-TASK-004` still include placeholder portions for GPU/runtime uninstall ownership scoping.
+Current `NODE-TASK-003` behavior:
+- enables NVIDIA container toolkit on GPU-profile workers
+- configures k3s-agent containerd runtime with `nvidia-ctk`
+- verifies NVIDIA runtime wiring in k3s agent containerd config
+- keeps uninstall mode non-destructive until ownership-registry-scoped cleanup is implemented
+
+Worker validation helpers:
+- `scripts/validate-cpu-worker.sh` checks CPU worker labels and canary scheduling.
+- `scripts/validate-gpu-worker.sh` checks GPU worker labels and runs an ephemeral CUDA pod that executes `nvidia-smi`.
 
 ## Inventory Contract
 Use [inventory.example.ini](./inventory.example.ini) as the template.
@@ -63,6 +74,7 @@ Supported input order for future join/remove scripts:
 Join script compatibility notes:
 - `--gpu` remains supported and now forces `localk8s_node_profile=gpu`.
 - Inventory `localk8s_node_profile=gpu` also enables GPU runtime installation by default.
+- Recommended post-join validation for GPU workers: `./scripts/validate-gpu-worker.sh --node standpunkt --namespace ray --timeout 300s`
 
 Logging requirements:
 - never print raw token values
