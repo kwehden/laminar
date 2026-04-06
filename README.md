@@ -6,13 +6,14 @@
 [![LLM Runtime](https://img.shields.io/badge/ollama-in--cluster-black)](https://ollama.com/)
 
 LocalK8s is a single-host GPU Kubernetes baseline for local AI systems work.  
-It provisions k3s, NVIDIA runtime/device plugin, KubeRay, in-cluster Ollama, dashboard ingress routes, and day-0 convergence (idempotent install) scripts.
+It provisions and reconciles a k3s control-plane host with NVIDIA runtime/device plugin, KubeRay, in-cluster Ollama, and local dashboard routes. It also includes inventory-driven node join/remove automation for adding CPU or GPU workers, with validation scripts and idempotent convergence workflows so reruns return to a known day-0 state.
 
 ## Table of Contents
 
 - [What This Repo Does](#what-this-repo-does)
 - [Architecture](#architecture)
 - [Quick Start](#quick-start)
+- [Node Expansion (Optional)](#node-expansion-optional)
 - [CPU Worker Canary](#cpu-worker-canary)
 - [GPU Worker Validation](#gpu-worker-validation)
 - [Tested Environment](#tested-environment)
@@ -25,6 +26,7 @@ It provisions k3s, NVIDIA runtime/device plugin, KubeRay, in-cluster Ollama, das
 ## What This Repo Does
 
 - Installs and reconciles a **single-node k3s** cluster.
+- Supports optional **remote worker expansion** via scripted join/remove flows.
 - Enables **NVIDIA GPU scheduling** with time-slicing.
 - Deploys **KubeRay** and a GPU-backed `RayCluster`.
 - Deploys **Ollama in-cluster** on GPU with persistent model storage.
@@ -38,11 +40,11 @@ It provisions k3s, NVIDIA runtime/device plugin, KubeRay, in-cluster Ollama, das
 Execution model:
 
 1. `scripts/setup.sh`: installs local tooling (`ansible`, `helm`, `helmfile`, `rg`).
-2. `scripts/bootstrap.sh`: orchestrates full reconciliation.
+2. `scripts/bootstrap.sh`: reconciles control-plane host + in-cluster components.
 3. Ansible (`ansible/site.yml`):
    - host prerequisites
    - k3s install/config
-   - NVIDIA runtime setup
+   - NVIDIA runtime setup (host and worker paths)
 4. Helmfile (`helmfile.yaml`):
    - NVIDIA device plugin
    - KubeRay operator
@@ -51,6 +53,9 @@ Execution model:
    - RayCluster and limits
    - Ollama workload + storage
    - ingress/middleware routes
+6. Node lifecycle scripts:
+   - `scripts/join-node.sh`: add CPU/GPU workers from inventory
+   - `scripts/remove-node.sh`: controlled drain/delete/uninstall with ownership-registry gating
 
 ## Quick Start
 
@@ -81,14 +86,46 @@ echo 'export LOCAL_HOSTNAME="<your-local-hostname>"' >> ~/.bashrc
 ./scripts/mount-ollama-model-disk.sh
 ```
 
-Default configured disk UUID:
-- `052b22cb-460f-4951-8d78-7a816f8a6895` (`/dev/sda1` on this host)
+If your model disk UUID or mount path differ, override:
+
+```bash
+OLLAMA_MODEL_DISK_UUID=<your-disk-uuid> ./scripts/mount-ollama-model-disk.sh
+# optional: OLLAMA_MODEL_MOUNT_POINT=/mnt/ollama-models
+```
 
 ### 4) Bootstrap everything
 
 ```bash
 ./scripts/bootstrap.sh
 ./scripts/healthcheck.sh
+```
+
+## Node Expansion (Optional)
+
+Use the inventory in `packages/node-join/inventory.example.ini` as the template for remote workers.
+
+Join a worker:
+
+```bash
+K3S_JOIN_TOKEN='<token>' ./scripts/join-node.sh --target polecat
+```
+
+Join a GPU worker:
+
+```bash
+K3S_JOIN_TOKEN='<token>' ./scripts/join-node.sh --target standpunkt --gpu
+```
+
+Remove a worker (controlled cleanup):
+
+```bash
+./scripts/remove-node.sh --node <k8s-node-name> --target <inventory-host>
+```
+
+Break-glass removal (missing/corrupt/mismatched registry):
+
+```bash
+./scripts/remove-node.sh --node <k8s-node-name> --target <inventory-host> --force-without-registry
 ```
 
 ## CPU Worker Canary
@@ -182,6 +219,7 @@ ansible/         Host and k3s configuration roles
 config/          Version pins, managed-scope config, model list
 helm/values/     Helm values for operators and plugins
 k8s/managed/     Managed Kubernetes manifests (pruned by label)
+packages/node-join/  Inventory contracts and node join/remove docs
 scripts/         Setup/bootstrap/health/ops helper scripts
 spec/            Context/requirements/design/tasks chain
 docs/runbook.md  Operational execution log and validation evidence
