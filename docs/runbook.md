@@ -38,11 +38,19 @@ If migrating host Ollama to in-cluster:
 ./scripts/remove-host-ollama.sh
 ```
 
+Before GPU worker rollout, run CPU worker canary validation:
+
+```bash
+./scripts/validate-cpu-worker.sh
+./scripts/validate-cpu-worker.sh --node polecat --timeout 300s
+```
+
 ## Validation Checklist
 Record command + result (`PASS`/`FAIL`) for each:
 
 ```bash
 kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get nodes
+./scripts/validate-cpu-worker.sh
 kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml describe node "$(kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get nodes -o jsonpath='{.items[0].metadata.name}')" | rg 'nvidia.com/gpu'
 kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get raycluster -n ray
 kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get pods -n ollama

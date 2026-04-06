@@ -29,14 +29,26 @@ Required host-level fields:
 - `ansible_user`
 
 Common optional fields:
-- `localk8s_gpu_enable` (`true`/`false`)
+- `localk8s_node_profile` (`cpu` or `gpu`, default `cpu`)
+- `localk8s_gpu_enable` (`true`/`false`, legacy compatibility fallback; prefer `localk8s_node_profile`)
 - `localk8s_node_name` (explicit Kubernetes node name override; defaults to remote `hostname -s`)
-- `localk8s_node_labels` (comma-separated `key=value`)
+- `localk8s_node_labels` (comma-separated `key=value`, appended to profile defaults)
 - `localk8s_node_taints` (comma-separated `key=value:Effect`)
 - `localk8s_allow_control_plane_remove` (`false` by default)
 
+Default labels by profile:
+- `cpu`: `localk8s.io/worker-class=cpu`, `localk8s.io/ray-eligible=true`, `localk8s.io/ollama-eligible=false`
+- `gpu`: `localk8s.io/worker-class=gpu`, `localk8s.io/ray-eligible=true`, `localk8s.io/ollama-eligible=true`
+
+Reserved labels:
+- `localk8s.io/worker-class`
+- `localk8s.io/ray-eligible`
+- `localk8s.io/ollama-eligible`
+
+These are profile-managed and must not be set in `localk8s_node_labels`.
+
 Required group-level fields (`[node_join_targets:vars]`):
-- `localk8s_k3s_url` (example: `https://laminarflow:6443`)
+- `localk8s_k3s_url` (example: `https://<control-plane-hostname>:6443`)
 - `ansible_become=true`
 
 Join workflow also consumes pinned `K3S_VERSION` from `config/versions.env` (or `K3S_VERSION` env override).
@@ -47,6 +59,10 @@ Do not store tokens in tracked files.
 Supported input order for future join/remove scripts:
 1. `K3S_JOIN_TOKEN` environment variable.
 2. Interactive prompt (silent input) when env var is not set.
+
+Join script compatibility notes:
+- `--gpu` remains supported and now forces `localk8s_node_profile=gpu`.
+- Inventory `localk8s_node_profile=gpu` also enables GPU runtime installation by default.
 
 Logging requirements:
 - never print raw token values

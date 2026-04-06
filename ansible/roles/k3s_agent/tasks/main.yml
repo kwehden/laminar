@@ -24,11 +24,42 @@
     fail_msg: "k3s_version, k3s_server_url, and k3s_server_token must be provided when k3s_agent_join_mode=join."
   when: k3s_agent_join_mode == 'join'
 
-- name: Build node label/taint lists from inventory values
+- name: Build base node join facts from inventory values
   ansible.builtin.set_fact:
     k3s_agent_node_name: "{{ localk8s_node_name | default(ansible_facts['hostname'], true) }}"
-    k3s_agent_node_labels: "{{ (localk8s_node_labels | default('', true)).split(',') | map('trim') | reject('equalto', '') | list }}"
+    k3s_agent_node_profile: "{{ (localk8s_node_profile | default('cpu', true) | string | lower | trim) }}"
+    k3s_agent_custom_node_labels: "{{ (localk8s_node_labels | default('', true)).split(',') | map('trim') | reject('equalto', '') | list }}"
     k3s_agent_node_taints: "{{ (localk8s_node_taints | default('', true)).split(',') | map('trim') | reject('equalto', '') | list }}"
+  when: k3s_agent_join_mode == 'join'
+
+- name: Validate node profile input
+  ansible.builtin.assert:
+    that:
+      - k3s_agent_node_profile in ['cpu', 'gpu']
+    fail_msg: "localk8s_node_profile must be one of: cpu, gpu"
+  when: k3s_agent_join_mode == 'join'
+
+- name: Build default node labels from profile
+  ansible.builtin.set_fact:
+    k3s_agent_default_node_labels:
+      - "localk8s.io/worker-class={{ k3s_agent_node_profile }}"
+      - "localk8s.io/ray-eligible=true"
+      - "localk8s.io/ollama-eligible={{ 'true' if k3s_agent_node_profile == 'gpu' else 'false' }}"
+  when: k3s_agent_join_mode == 'join'
+
+- name: Assert custom labels do not override reserved profile-managed labels
+  ansible.builtin.assert:
+    that:
+      - item is not match('^localk8s\\.io/(worker-class|ray-eligible|ollama-eligible)=')
+    fail_msg: >-
+      localk8s_node_labels includes reserved profile-managed label '{{ item }}'.
+      Set localk8s_node_profile instead of overriding reserved labels directly.
+  loop: "{{ k3s_agent_custom_node_labels }}"
+  when: k3s_agent_join_mode == 'join'
+
+- name: Merge default and custom node labels
+  ansible.builtin.set_fact:
+    k3s_agent_node_labels: "{{ (k3s_agent_default_node_labels + k3s_agent_custom_node_labels) | unique | list }}"
   when: k3s_agent_join_mode == 'join'
 
 - name: Ensure k3s config directory exists
