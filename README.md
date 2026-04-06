@@ -1,12 +1,12 @@
-# LocalK8s
+# Laminar
 
 [![Platform](https://img.shields.io/badge/platform-k3s-blue)](https://k3s.io/)
 [![GPU](https://img.shields.io/badge/gpu-NVIDIA-76B900)](https://www.nvidia.com/)
 [![Orchestrator](https://img.shields.io/badge/ray-KubeRay-orange)](https://ray.io/)
 [![LLM Runtime](https://img.shields.io/badge/ollama-in--cluster-black)](https://ollama.com/)
 
-LocalK8s is a single-host GPU Kubernetes baseline for local AI systems work.  
-It provisions and reconciles a k3s control-plane host with NVIDIA runtime/device plugin, KubeRay, in-cluster Ollama, and local dashboard routes. It also includes inventory-driven node join/remove automation for adding CPU or GPU workers, with validation scripts and idempotent convergence workflows so reruns return to a known day-0 state.
+Laminar is a k3s control-plane baseline for local AI systems work.  
+It provisions and reconciles a control-plane host with NVIDIA runtime/device plugin, KubeRay, in-cluster Ollama, and local dashboard routes. It also includes inventory-driven node join/remove automation for adding CPU or GPU workers, with validation scripts and idempotent convergence workflows so reruns return to a known day-0 state.
 
 ## Table of Contents
 
