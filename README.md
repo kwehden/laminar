@@ -12,6 +12,7 @@ It provisions and reconciles a control-plane host with NVIDIA runtime/device plu
 
 - [What This Repo Does](#what-this-repo-does)
 - [Architecture](#architecture)
+- [Platform Prereqs](#platform-prereqs)
 - [Quick Start](#quick-start)
 - [Node Expansion (Optional)](#node-expansion-optional)
 - [CPU Worker Canary](#cpu-worker-canary)
@@ -37,6 +38,8 @@ It provisions and reconciles a control-plane host with NVIDIA runtime/device plu
 
 ## Architecture
 
+Platform assumptions are documented in [`docs/platform-prereqs.md`](./docs/platform-prereqs.md). Keep architecture and host prerequisites separate when extending this repo.
+
 Execution model:
 
 1. `scripts/setup.sh`: installs local tooling (`ansible`, `helm`, `helmfile`, `rg`).
@@ -56,6 +59,13 @@ Execution model:
 6. Node lifecycle scripts:
    - `scripts/join-node.sh`: add CPU/GPU workers from inventory
    - `scripts/remove-node.sh`: controlled drain/delete/uninstall with ownership-registry gating
+
+## Platform Prereqs
+
+See [`docs/platform-prereqs.md`](./docs/platform-prereqs.md) for:
+- validated baseline hardware/OS/toolchain
+- required host and worker prerequisites
+- applicability boundaries (where this spec applies directly vs where adaptation is required)
 
 ## Quick Start
 
@@ -187,6 +197,8 @@ Validated on:
   - `ray` image tag 2.47.1
   - `headlamp` chart 0.41.0
 
+For scope/applicability guidance beyond this validated baseline, see [`docs/platform-prereqs.md`](./docs/platform-prereqs.md).
+
 ## Access Endpoints
 
 - Ray dashboard: `http://<your-local-hostname>/ray/`
@@ -223,6 +235,7 @@ packages/node-join/  Inventory contracts and node join/remove docs
 scripts/         Setup/bootstrap/health/ops helper scripts
 spec/            Context/requirements/design/tasks chain
 docs/runbook.md  Operational execution log and validation evidence
+docs/platform-prereqs.md  Host prerequisites and applicability matrix
 ```
 
 ## Operations
