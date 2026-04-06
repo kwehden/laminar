@@ -3,6 +3,8 @@
 ## Purpose
 This document defines the host prerequisites Laminar assumes, the environment it has been validated on, and where the current spec should or should not be applied without adaptation.
 
+For mixed-generation GPU planning (including Tesla M10), see [`gpu-compatibility-m10.md`](./gpu-compatibility-m10.md).
+
 ## Tested Baseline (Validated)
 - OS: Ubuntu 26.04 (Resolute, Debian family)
 - Kubernetes: k3s `v1.33.1+k3s1`
